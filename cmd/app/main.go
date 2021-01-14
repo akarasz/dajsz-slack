@@ -1,31 +1,21 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/slack-go/slack"
 )
 
 func main() {
-	var (
-		oauthToken    string
-		signingSecret string
-	)
-
-	flag.StringVar(&oauthToken, "token", "YOUR_TOKEN_HERE", "Your Slack app's oauth token")
-	flag.StringVar(&signingSecret, "secret", "YOUR_SIGNING_SECRET_HERE", "Your Slack app's signing secret")
-
-	flag.Parse()
-
-	api := slack.New(oauthToken)
+	api := slack.New(os.Getenv("token"))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
-		verifier, err := slack.NewSecretsVerifier(r.Header, signingSecret)
+		verifier, err := slack.NewSecretsVerifier(r.Header, os.Getenv("secret"))
 		if err != nil {
 			logError(w, "unable to create secrets verifier", err)
 			return
