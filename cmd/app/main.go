@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,8 +13,6 @@ import (
 )
 
 func main() {
-	api := slack.New(os.Getenv("token"))
-
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		verifier, err := slack.NewSecretsVerifier(r.Header, os.Getenv("secret"))
@@ -35,36 +35,7 @@ func main() {
 
 		switch s.Command {
 		case "/dajsz":
-			res, err := http.Post("https://api.dajsz.hu/", "", nil)
-
-			if err != nil {
-				logError(w, "failed to post request", err)
-				return
-			}
-			if res.StatusCode != http.StatusCreated {
-				logError(w, "wrong return from api", res.StatusCode)
-				return
-			}
-
-			gameIDs, ok := res.Header["Location"]
-			if !ok {
-				logError(w, "no location header in api response", nil)
-				return
-			}
-			if len(gameIDs) != 1 {
-				logError(w, "invalid location header in api response", gameIDs)
-				return
-			}
-
-			_, _, err = api.PostMessage(
-				s.ChannelID,
-				slack.MsgOptionText("Join a friendly game of yahtzee: https://dajsz.hu/#" + gameIDs[0], false),
-				slack.MsgOptionAsUser(true),
-			)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+			go sendDajszLink(s.ResponseURL)
 			w.WriteHeader(http.StatusOK)
 			return
 		default:
@@ -74,6 +45,51 @@ func main() {
 	})
 
 	http.ListenAndServe(":3000", nil)
+}
+
+func sendDajszLink(responseURL string) {
+	res, err := http.Post("https://api.dajsz.hu/", "", nil)
+	if err != nil {
+		sendFail(responseURL)
+		return
+	}
+	if res.StatusCode != http.StatusCreated {
+		sendFail(responseURL)
+		return
+	}
+	gameIDs, ok := res.Header["Location"]
+	if !ok {
+		sendFail(responseURL)
+		return
+	}
+	if len(gameIDs) != 1 {
+		sendFail(responseURL)
+		return
+	}
+
+	sendSuccess(responseURL, gameIDs[0])
+}
+
+func sendSuccess(responseURL, gameID string) {
+	send(responseURL, &slack.Msg{
+		Text:         ":game_die: Ic dajsz tajm! https://dajsz.hu/#" + gameID,
+		ResponseType: "in_channel",
+	})
+}
+
+func sendFail(responseURL string) {
+	send(responseURL, &slack.Msg{
+		Text: "Something went wrong. Try again?",
+	})
+}
+
+func send(responseURL string, message *slack.Msg) {
+	body, err := json.Marshal(message)
+	if err != nil {
+		return
+	}
+
+	http.Post(responseURL, "application/json", bytes.NewReader(body))
 }
 
 func logError(w http.ResponseWriter, msg string, details interface{}) {
