@@ -12,6 +12,21 @@ import (
 	"github.com/slack-go/slack"
 )
 
+type ResponseURL struct {
+	BlockID     string `json:"block_id"`
+	ActionID    string `json:"action_id"`
+	ChannelID   string `json:"channel_id"`
+	ResponseURL string `json:"response_url"`
+}
+
+type ExtendedInteractionCallback struct {
+	CallbackID   string        `json:"callback_id"`
+	TriggerID    string        `json:"trigger_id"`
+	ResponseURLs []ResponseURL `json:"response_urls"`
+
+	// slack.InteractionCallback
+}
+
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -22,29 +37,63 @@ func main() {
 		}
 
 		r.Body = ioutil.NopCloser(io.TeeReader(r.Body, &verifier))
-		s, err := slack.SlashCommandParse(r)
+		var i ExtendedInteractionCallback
+		err = json.Unmarshal([]byte(r.FormValue("payload")), &i)
 		if err != nil {
-			logError(w, "unable to parse command", err)
-			return
-		}
-
-		if err = verifier.Ensure(); err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		switch s.Command {
-		case "/dajsz":
-			go sendDajszLink(s.ResponseURL)
-			w.WriteHeader(http.StatusOK)
-			return
-		default:
-			logError(w, "invalid command", s.Command)
-			return
+		if i.CallbackID == "yahtzee" {
+			go showModal(&i)
+		} else {
+			go sendDajszLink(i.ResponseURLs[0].ResponseURL)
 		}
+		w.WriteHeader(http.StatusOK)
+		return
 	})
 
 	http.ListenAndServe(":3000", nil)
+}
+
+func showModal(i *ExtendedInteractionCallback) {
+	api := slack.New(os.Getenv("token"))
+	_, err := api.OpenView(
+		i.TriggerID,
+		slack.ModalViewRequest{
+			Title: &slack.TextBlockObject{
+				Type: "plain_text",
+				Text: "Dajsz",
+			},
+			Submit: &slack.TextBlockObject{
+				Type: "plain_text",
+				Text: "Share link",
+			},
+			Blocks: slack.Blocks{
+				BlockSet: []slack.Block{
+					slack.InputBlock{
+						BlockID:  "share",
+						Type:     "input",
+						Optional: false,
+						Label: &slack.TextBlockObject{
+							Type: "plain_text",
+							Text: "Where to share the link of the game?",
+						},
+						Element: slack.SelectBlockElement{
+							ActionID:                     "my_action_id",
+							Type:                         "conversations_select",
+							DefaultToCurrentConversation: true,
+							ResponseURLEnabled:           true,
+						},
+					},
+				},
+			},
+			Type: "modal",
+		})
+	if err != nil {
+		log.Printf(err.Error())
+		return
+	}
 }
 
 func sendDajszLink(responseURL string) {
