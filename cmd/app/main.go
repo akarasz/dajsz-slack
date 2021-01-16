@@ -84,16 +84,17 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := slack.GetOAuthV2Response(
+	res, err := slack.GetOAuthV2Response(
 		&http.Client{},
 		os.Getenv("CLIENT_ID"),
 		os.Getenv("CLIENT_SECRET"),
 		code[0],
-		"")
+		"https://slack.dajsz.hu/auth/success")
 	if err != nil {
 		logError(w, "failed to get oauth token", err)
 		return
 	}
+	log.Print("got token for ", res.Team.ID, " and it is ", res.AccessToken)
 
 	w.Header().Set("Location", "https://slack.dajsz.hu/auth/success")
 	w.WriteHeader(http.StatusFound)
