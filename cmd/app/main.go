@@ -82,12 +82,6 @@ func main() {
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		w.Header().Set("Location", "https://slack.com/oauth/v2/authorize?scope=commands&client_id=" + os.Getenv("CLIENT_ID"))
-		w.WriteHeader(http.StatusFound)
-		return
-	}
-
 	code, ok := r.URL.Query()["code"]
 	if !ok || len(code) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -146,6 +140,9 @@ func shortcutHandler(w http.ResponseWriter, r *http.Request) {
 			logError(w, "error while executing on template", err)
 			return
 		}
+
+		w.Header().Set("Location", "https://slack.com/oauth/v2/authorize?scope=commands&client_id=" + os.Getenv("CLIENT_ID"))
+		w.WriteHeader(http.StatusFound)
 		return
 	}
 
