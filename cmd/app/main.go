@@ -96,8 +96,6 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Print("got token for ", res.Team.ID, " and it is ", res.AccessToken)
 
-	w.Header().Set("Location", "https://slack.dajsz.hu/auth/success")
-	w.WriteHeader(http.StatusFound)
 	w.WriteHeader(http.StatusOK)
 }
 
