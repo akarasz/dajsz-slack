@@ -35,7 +35,12 @@ func main() {
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
-	// get the code
+	if r.Method == http.MethodGet {
+		w.Header().Set("Location", "https://slack.com/oauth/v2/authorize?scope=commands&client_id=" + os.Getenv("CLIENT_ID"))
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+
 	code, ok := r.URL.Query()["code"]
 	if !ok || len(code) != 1 {
 		w.WriteHeader(http.StatusBadRequest)
