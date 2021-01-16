@@ -28,36 +28,59 @@ type ExtendedInteractionCallback struct {
 }
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-
-		verifier, err := slack.NewSecretsVerifier(r.Header, os.Getenv("secret"))
-		if err != nil {
-			logError(w, "unable to create secrets verifier", err)
-			return
-		}
-
-		r.Body = ioutil.NopCloser(io.TeeReader(r.Body, &verifier))
-		var i ExtendedInteractionCallback
-		err = json.Unmarshal([]byte(r.FormValue("payload")), &i)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		if i.CallbackID == "yahtzee" {
-			go showModal(&i)
-		} else {
-			go sendDajszLink(i.ResponseURLs[0].ResponseURL)
-		}
-		w.WriteHeader(http.StatusOK)
-		return
-	})
+	http.HandleFunc("/auth", authHandler)
+	http.HandleFunc("/", shortcutHandler)
 
 	http.ListenAndServe(":3000", nil)
 }
 
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	// get the code
+	code, ok := r.URL.Query()["code"]
+	if !ok || len(code) != 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	_, err := slack.GetOAuthV2Response(
+		&http.Client{},
+		os.Getenv("CLIENT_ID"),
+		os.Getenv("CLIENT_SECRET"),
+		code[0],
+		"")
+	if err != nil {
+		logError(w, "failed to get oauth token", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func shortcutHandler(w http.ResponseWriter, r *http.Request) {
+	verifier, err := slack.NewSecretsVerifier(r.Header, os.Getenv("SIGNING_SECRET"))
+	if err != nil {
+		logError(w, "unable to create secrets verifier", err)
+		return
+	}
+
+	r.Body = ioutil.NopCloser(io.TeeReader(r.Body, &verifier))
+	var i ExtendedInteractionCallback
+	err = json.Unmarshal([]byte(r.FormValue("payload")), &i)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if i.CallbackID == "yahtzee" {
+		go showModal(&i)
+	} else {
+		go sendDajszLink(i.ResponseURLs[0].ResponseURL)
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func showModal(i *ExtendedInteractionCallback) {
-	api := slack.New(os.Getenv("token"))
+	api := slack.New(os.Getenv("TOKEN"))
 	_, err := api.OpenView(
 		i.TriggerID,
 		slack.ModalViewRequest{
@@ -121,7 +144,7 @@ func sendDajszLink(responseURL string) {
 
 func sendSuccess(responseURL, gameID string) {
 	send(responseURL, &slack.Msg{
-		Text:         ":game_die: Ic dajsz tajm! https://dajsz.hu/#" + gameID,
+		Text:         "https://dajsz.hu/#" + gameID,
 		ResponseType: "in_channel",
 	})
 }
