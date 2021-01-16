@@ -8,9 +8,55 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"text/template"
 
 	"github.com/slack-go/slack"
 )
+
+const tpl = `
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Dajsz</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style type="text/css">
+    body {
+      display: grid;
+      grid-template-columns: 100%;
+      grid-template-rows: 100%;
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+    }
+
+    div.content {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: center;
+      align-self: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="content">{{ . }}</div>
+</body>
+</html>
+`
+
+const landing = `
+<a href="https://slack.com/oauth/v2/authorize?client_id={{ . }}&scope=commands&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+`
+
+const success = `
+<div class="content" style="background-color: rgba(58, 186, 41, .2);padding: .5em 2em;border-radius: .5em;border: 2px solid rgba(58, 186, 41, .3);box-shadow: 0 0 1em rgba(0, 0, 0, 0.1);color: rgba(0,0,0, .8);margin: 5em;">
+  <p>
+    Dajsz was successfully installed to your workspace, so go over there and play! You can close this window now.
+  </p>
+</div>
+`
 
 type ResponseURL struct {
 	BlockID     string `json:"block_id"`
@@ -28,6 +74,7 @@ type ExtendedInteractionCallback struct {
 }
 
 func main() {
+	http.HandleFunc("/auth/success", successHandler)
 	http.HandleFunc("/auth", authHandler)
 	http.HandleFunc("/", shortcutHandler)
 
@@ -52,7 +99,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		os.Getenv("CLIENT_ID"),
 		os.Getenv("CLIENT_SECRET"),
 		code[0],
-		"")
+		"https://slack.dajsz.hu/auth/success")
 	if err != nil {
 		logError(w, "failed to get oauth token", err)
 		return
@@ -61,7 +108,47 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func successHandler(w http.ResponseWriter, r *http.Request) {
+	t, err := template.New("main").Parse(tpl)
+	if err != nil {
+		logError(w, "error creating template", err)
+		return
+	}
+	err = t.Execute(w, success)
+	if err != nil {
+		logError(w, "error while executing on template", err)
+		return
+	}
+	return
+}
+
 func shortcutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		tLanding, err := template.New("landing").Parse(landing)
+		if err != nil {
+			logError(w, "error creating template", err)
+			return
+		}
+		landing := bytes.Buffer{}
+		err = tLanding.Execute(&landing, os.Getenv("CLIENT_ID"))
+		if err != nil {
+			logError(w, "error while executing on template", err)
+			return
+		}
+
+		t, err := template.New("main").Parse(tpl)
+		if err != nil {
+			logError(w, "error creating template", err)
+			return
+		}
+		err = t.Execute(w, landing.String())
+		if err != nil {
+			logError(w, "error while executing on template", err)
+			return
+		}
+		return
+	}
+
 	verifier, err := slack.NewSecretsVerifier(r.Header, os.Getenv("SIGNING_SECRET"))
 	if err != nil {
 		logError(w, "unable to create secrets verifier", err)
