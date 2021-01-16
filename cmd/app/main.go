@@ -89,12 +89,14 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		os.Getenv("CLIENT_ID"),
 		os.Getenv("CLIENT_SECRET"),
 		code[0],
-		"https://slack.dajsz.hu/auth/success")
+		"")
 	if err != nil {
 		logError(w, "failed to get oauth token", err)
 		return
 	}
 
+	w.Header().Set("Location", "https://slack.dajsz.hu/auth/success")
+	w.WriteHeader(http.StatusFound)
 	w.WriteHeader(http.StatusOK)
 }
 
