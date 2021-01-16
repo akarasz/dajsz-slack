@@ -46,10 +46,6 @@ const tpl = `
 </html>
 `
 
-const landing = `
-<a href="https://slack.com/oauth/v2/authorize?client_id={{ . }}&scope=commands&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
-`
-
 const success = `
 <div class="content" style="background-color: rgba(58, 186, 41, .2);padding: .5em 2em;border-radius: .5em;border: 2px solid rgba(58, 186, 41, .3);box-shadow: 0 0 1em rgba(0, 0, 0, 0.1);color: rgba(0,0,0, .8);margin: 5em;">
   <p>
@@ -118,30 +114,7 @@ func successHandler(w http.ResponseWriter, r *http.Request) {
 
 func shortcutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		tLanding, err := template.New("landing").Parse(landing)
-		if err != nil {
-			logError(w, "error creating template", err)
-			return
-		}
-		landing := bytes.Buffer{}
-		err = tLanding.Execute(&landing, os.Getenv("CLIENT_ID"))
-		if err != nil {
-			logError(w, "error while executing on template", err)
-			return
-		}
-
-		t, err := template.New("main").Parse(tpl)
-		if err != nil {
-			logError(w, "error creating template", err)
-			return
-		}
-		err = t.Execute(w, landing.String())
-		if err != nil {
-			logError(w, "error while executing on template", err)
-			return
-		}
-
-		w.Header().Set("Location", "https://slack.com/oauth/v2/authorize?scope=commands&client_id=" + os.Getenv("CLIENT_ID"))
+		w.Header().Set("Location", "https://slack.com/oauth/v2/authorize?scope=commands&client_id="+os.Getenv("CLIENT_ID"))
 		w.WriteHeader(http.StatusFound)
 		return
 	}
