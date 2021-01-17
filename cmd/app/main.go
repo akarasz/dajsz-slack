@@ -209,7 +209,7 @@ func sendDajszLink(responseURL string) {
 
 func sendSuccess(responseURL, gameID string) {
 	send(responseURL, &slack.Msg{
-		Text:         "https://dajsz.hu/#" + gameID,
+		Text:         "https://dajsz.hu" + gameID,
 		ResponseType: "in_channel",
 	})
 }
